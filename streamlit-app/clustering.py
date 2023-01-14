@@ -41,8 +41,9 @@ from sklearn.preprocessing import label_binarize
 from sklearn.metrics import roc_curve, auc
 from itertools import cycle
 def clustering(df):
-    X_clus= df.drop(["icon"],axis=1)
-    y_clus = df["icon"]
+    X_clus= df.drop(["weather"],axis=1)
+    y_clus = df["weather"]
+    #df.rename(columns = {'icon':'weather'}, inplace = True)
     colnames = X_clus.columns
 
     #Label encode
@@ -232,7 +233,7 @@ def undersample_option(neighbors, X_clus, y_clus):
 def oversample_option(neighbors, X_clus, y_clus):
             neighbors_range = np.arange(1, neighbors)
             train_accuracy = np.empty(len(neighbors_range))
-            oversample = RandomOverSampler(sampling_strategy="minority")
+            oversample = RandomOverSampler(sampling_strategy="auto")
             X_clus, y_clus = oversample.fit_resample(X_clus, y_clus)
             x_train, x_test, y_train, y_test = train_test_split(X_clus, y_clus, test_size=0.3, random_state=0)
 

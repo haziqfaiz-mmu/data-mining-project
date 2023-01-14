@@ -28,6 +28,7 @@ from sklearn.linear_model import LogisticRegression
 
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import PolynomialFeatures
 
 def ranking(ranks, names, order=1):
     minmax = MinMaxScaler() # everything will be between 0 and 1
@@ -40,6 +41,7 @@ def regression(df):
     st.sidebar.subheader("Chooose Regression Model")
     df_regression = df.drop(["Date"],axis=1)
     df_regression["Time"]=pd.to_datetime(df_regression["Time"], format='%H:%M:%S').dt.hour
+    
 
     #Label encode
     label_encoder = preprocessing.LabelEncoder()
@@ -50,17 +52,20 @@ def regression(df):
     df_regression =stats.zscore(df_regression)
 
     #get the X and y
-    X_reg = df_regression.drop(["TotalSpent_RM"],axis=1)
-    y_reg = df_regression["TotalSpent_RM"]
+    X_reg = df_regression.drop(["humidity"],axis=1)
+    y_reg = df_regression["humidity"]
     colnames = X_reg.columns
 
-    model = st.sidebar.selectbox("Models", ("1. Linear Regression with RFE", "2. Lasso Regression with RFE"),key='regression-model')
+    model = st.sidebar.selectbox("Models", ("1. Linear Regression with RFE", "2. Lasso Regression with RFE", "3. 2nd Order Polynomial Regression with RFE"),key='regression-model')
 
     if model == "1. Linear Regression with RFE":
         lr_with_rfe(X_reg,y_reg,colnames)
        
     if model == "2. Lasso Regression with RFE":
         lasso_with_rfe(X_reg,y_reg,colnames)
+
+    if model == "3. 2nd Order Polynomial Regression with RFE":
+        poly_with_rfe(X_reg,y_reg,colnames)
         
 def lr_with_rfe(X_reg,y_reg,colnames):
     rfe_features_number = st.sidebar.selectbox("How many RFE features?",(5, 10, 15,20))
@@ -107,4 +112,27 @@ def lasso_with_rfe(X_reg,y_reg,colnames):
         n_scores = cross_val_score(lasso,optimal_X, y_reg, cv=cv, scoring='r2')
         # report performance
         #print('R2: %.3f (%.3f)' % (np.mean(n_scores), np.std(n_scores)))
+        st.write('R2: %.3f (%.3f)' % (np.mean(n_scores), np.std(n_scores)))
+
+def poly_with_rfe(X_reg,y_reg,colnames):
+    rfe_features_number = st.sidebar.selectbox("How many RFE features?",(5, 10, 15,20))
+
+    if st.sidebar.button("Run model", key='run'):
+        poly = PolynomialFeatures(degree=2, include_bias=False)
+        poly_features = poly.fit_transform(X_reg)
+
+        poly_model = LinearRegression()
+        rfe_poly = RFECV(poly_model, min_features_to_select=10, cv=3)
+        rfe_poly.fit(poly_features,y_reg)
+
+        rfe_score = ranking(list(map(float, rfe_poly.ranking_)), colnames, order=-1)
+        rfe_score = pd.DataFrame(list(rfe_score.items()), columns=['Features', 'Score'])
+        rfe_score = rfe_score.sort_values("Score", ascending = False)
+        st.write(rfe_score)
+
+        pipeline = Pipeline(steps=[('s',rfe_poly),('m',poly_model)])
+        # evaluate model
+        cv = ShuffleSplit(n_splits=5, test_size=0.3, random_state=0)
+        n_scores = cross_val_score(pipeline, poly_features, y_reg, cv=cv, scoring='r2')
+        # report performance
         st.write('R2: %.3f (%.3f)' % (np.mean(n_scores), np.std(n_scores)))
